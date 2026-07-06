@@ -402,12 +402,21 @@ function ProjectMini({
         </div>
       </div>
       <footer>
-        <a href={project.url} {...linkProps}>
-          {links[0]}
-        </a>
-        <a href={project.detailsUrl} {...linkProps}>
-          {links[1]}
-        </a>
+        {project.isPlaceholder ? (
+          <>
+            <span>private</span>
+            <span>{project.type}</span>
+          </>
+        ) : (
+          <>
+            <a href={project.url} {...linkProps}>
+              {links[0]}
+            </a>
+            <a href={project.detailsUrl} {...linkProps}>
+              {links[1]}
+            </a>
+          </>
+        )}
       </footer>
     </article>
   );
@@ -1231,7 +1240,7 @@ export function HomeExperience() {
               <span>{copy.projects.text}</span>
             </div>
             <div className="project-files">
-              {projects.slice(0, 4).map((project, index) => (
+              {projects.map((project, index) => (
                 <ProjectMini
                   project={project}
                   index={index}

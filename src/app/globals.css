@@ -1696,7 +1696,8 @@ button {
   border-top: 1px solid var(--line-soft);
 }
 
-.project-file footer a {
+.project-file footer a,
+.project-file footer span {
   color: rgba(238, 245, 255, 0.68);
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.72rem;
