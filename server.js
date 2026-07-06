@@ -4,9 +4,14 @@ const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const next = require("next");
 
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : "";
+}
+
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "0.0.0.0";
-const port = Number(process.env.PORT || process.env.SERVER_PORT || 3000);
+const hostname = argValue("--hostname") || process.env.HOSTNAME || "0.0.0.0";
+const port = Number(argValue("--port") || process.env.PORT || process.env.SERVER_PORT || 3000);
 const ogannesPort = Number(process.env.OGANNES_PORT || port + 1);
 const ogannesDir = path.join(__dirname, "ogannes");
 const ogannesDbPath = path.join(ogannesDir, "data", "study-db.json");
