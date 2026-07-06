@@ -13,6 +13,7 @@ const dev = process.env.NODE_ENV !== "production";
 const hostname = argValue("--hostname") || process.env.HOSTNAME || "0.0.0.0";
 const port = Number(argValue("--port") || process.env.PORT || process.env.SERVER_PORT || 3000);
 const ogannesPort = Number(process.env.OGANNES_PORT || port + 1);
+const ogannesNodeOptions = process.env.OGANNES_NODE_OPTIONS || "--max-old-space-size=96";
 const ogannesDir = path.join(__dirname, "ogannes");
 const ogannesDbPath = path.join(ogannesDir, "data", "study-db.json");
 const accessCookie = "study_access_sid";
@@ -155,7 +156,7 @@ function proxyOgannes(req, res, url) {
 function startOgannes() {
   const child = spawn(process.execPath, ["server.js"], {
     cwd: ogannesDir,
-    env: { ...process.env, PORT: String(ogannesPort) },
+    env: { ...process.env, NODE_OPTIONS: ogannesNodeOptions, PORT: String(ogannesPort) },
     stdio: ["ignore", "inherit", "inherit"],
     windowsHide: true,
   });

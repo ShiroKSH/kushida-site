@@ -25,6 +25,12 @@ const siteAccessPassword = 'ius';
 const siteAccessCookie = 'study_access_sid';
 const sessions = new Map();
 const loginAttempts = new Map();
+const adminHashOptions = {
+  memoryCost: Number(process.env.ARGON2_MEMORY_COST || 4096),
+  timeCost: Number(process.env.ARGON2_TIME_COST || 2),
+  parallelism: Number(process.env.ARGON2_PARALLELISM || 1),
+  outputLen: 32
+};
 
 const defaultCourse = {
   id: 'iogp',
@@ -842,7 +848,7 @@ async function handleApi(req, res, url) {
     }
     adminUsername = username;
     adminPassword = '';
-    adminPasswordHash = await hashArgon2(password);
+    adminPasswordHash = await hashArgon2(password, adminHashOptions);
     upsertEnv({ ADMIN_USERNAME: adminUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, PUBLIC_BOT_LINK: botLink });
     const sid = randomBytes(32).toString('hex');
     sessions.set(sid, { username, createdAt: Date.now(), expiresAt: Date.now() + 2 * 60 * 60 * 1000 });
