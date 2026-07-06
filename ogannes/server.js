@@ -170,6 +170,10 @@ function createBotCode() {
   return randomBytes(4).toString('hex').toUpperCase();
 }
 
+function normalizeBotCode(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+}
+
 function sendText(res, status, body, headers = {}) {
   res.writeHead(status, {
     'Content-Type': 'text/plain; charset=utf-8',
@@ -700,9 +704,9 @@ async function handleTelegramMessage(message) {
   if (!message?.chat?.id) return;
   const text = cleanString(message.text, 120);
   const db = loadDb();
-  const code = text.startsWith('/start') ? cleanString(text.split(/\s+/)[1] || '', 20) : text;
+  const code = normalizeBotCode(text.startsWith('/start') ? text.split(/\s+/)[1] : text);
   if (code && /^[A-Z0-9]{6,12}$/i.test(code)) {
-    const student = db.students.find((item) => item.botCode.toLowerCase() === code.toLowerCase());
+    const student = db.students.find((item) => normalizeBotCode(item.botCode) === code);
     if (student) {
       student.chatId = String(message.chat.id);
       student.telegram = message.from?.username ? `@${message.from.username}` : student.telegram;
@@ -710,6 +714,8 @@ async function handleTelegramMessage(message) {
       await sendTelegram(student.chatId, 'Готово, Telegram привязан. Теперь сюда будут приходить задания и фидбек.');
       return;
     }
+    await sendTelegram(String(message.chat.id), 'Код не найден. Открой сайт заново, укажи Telegram и пришли новый код.');
+    return;
   }
   if (text === '/tasks') {
     const tasks = openAssignments(db, defaultCourse.id);
