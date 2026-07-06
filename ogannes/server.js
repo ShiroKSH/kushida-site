@@ -171,7 +171,7 @@ function createBotCode() {
 }
 
 function normalizeBotCode(value) {
-  return String(value || '').toUpperCase().replace(/O/g, '0').replace(/[^A-F0-9]/g, '').slice(0, 12);
+  return String(value || '').toUpperCase().replace(/[OО]/g, '0').replace(/[^A-F0-9]/g, '').slice(0, 12);
 }
 
 function sendText(res, status, body, headers = {}) {
@@ -723,7 +723,7 @@ async function handleTelegramMessage(message) {
     await sendTelegram(String(message.chat.id), body);
     return;
   }
-  await sendTelegram(String(message.chat.id), `Открой сайт, укажи Telegram и пришли сюда код привязки. Бот: ${botLink}`);
+  await sendTelegram(String(message.chat.id), `Пришли код из профиля на сайте. Бот: ${botLink}`);
 }
 
 async function handleApi(req, res, url) {
