@@ -21,6 +21,7 @@ let adminPassword = process.env.ADMIN_PASSWORD || '';
 let adminPasswordHash = process.env.ADMIN_PASSWORD_HASH || '';
 const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const botLink = process.env.PUBLIC_BOT_LINK || 'https://t.me/OgannesStudy_bot';
+const botBuild = 'kushida-ogannes-2026-07-06-2328';
 const siteAccessPassword = 'ius';
 const siteAccessCookie = 'study_access_sid';
 const sessions = new Map();
@@ -703,6 +704,10 @@ async function pollTelegram() {
 async function handleTelegramMessage(message) {
   if (!message?.chat?.id) return;
   const text = cleanString(message.text, 120);
+  if (text === '/version') {
+    await sendTelegram(String(message.chat.id), `Bot build: ${botBuild}`);
+    return;
+  }
   const db = loadDb();
   const code = normalizeBotCode(text.startsWith('/start') ? text.split(/\s+/)[1] : text);
   if (code && /^[A-Z0-9]{6,12}$/i.test(code)) {
@@ -711,10 +716,10 @@ async function handleTelegramMessage(message) {
       student.chatId = String(message.chat.id);
       student.telegram = message.from?.username ? `@${message.from.username}` : student.telegram;
       saveDb(db);
-      await sendTelegram(student.chatId, 'Готово, Telegram привязан. Теперь сюда будут приходить задания и фидбек.');
+      await sendTelegram(student.chatId, `Готово, Telegram привязан. Теперь сюда будут приходить задания и фидбек.\n\n${botBuild}`);
       return;
     }
-    await sendTelegram(String(message.chat.id), 'Код не найден. Открой сайт заново, укажи Telegram и пришли новый код.');
+    await sendTelegram(String(message.chat.id), `Код не найден в базе этого сайта. Нажми на сайте "сменить аккаунт", получи новый код и пришли его сюда.\n\n${botBuild}`);
     return;
   }
   if (text === '/tasks') {
@@ -723,7 +728,7 @@ async function handleTelegramMessage(message) {
     await sendTelegram(String(message.chat.id), body);
     return;
   }
-  await sendTelegram(String(message.chat.id), `Пришли код из профиля на сайте. Бот: ${botLink}`);
+  await sendTelegram(String(message.chat.id), `Пришли код из профиля на сайте. Бот: ${botLink}\n\n${botBuild}`);
 }
 
 async function handleApi(req, res, url) {
