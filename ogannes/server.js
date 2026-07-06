@@ -171,7 +171,7 @@ function createBotCode() {
 }
 
 function normalizeBotCode(value) {
-  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  return String(value || '').toUpperCase().replace(/O/g, '0').replace(/[^A-F0-9]/g, '').slice(0, 12);
 }
 
 function sendText(res, status, body, headers = {}) {
