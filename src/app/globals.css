@@ -2025,13 +2025,19 @@ button {
 .reveal-on-scroll {
   --reveal-delay: 0ms;
   --reveal-y: 28px;
-  opacity: 0;
-  filter: blur(8px);
-  transform: translateY(var(--reveal-y));
+  opacity: 1;
+  filter: none;
+  transform: translateY(0);
   transition:
     opacity 760ms ease var(--reveal-delay),
     filter 760ms ease var(--reveal-delay),
     transform 760ms cubic-bezier(0.19, 1, 0.22, 1) var(--reveal-delay);
+}
+
+.reveal-ready .reveal-on-scroll:not(.is-visible) {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(var(--reveal-y));
 }
 
 .reveal-on-scroll.is-visible {
@@ -2040,24 +2046,36 @@ button {
   transform: translateY(0);
 }
 
-.hero-status.reveal-on-scroll {
+.reveal-ready .hero-status.reveal-on-scroll:not(.is-visible) {
   transform: translate(-50%, calc(-50% + var(--reveal-y)));
+}
+
+.hero-status.reveal-on-scroll {
+  transform: translate(-50%, -50%);
 }
 
 .hero-status.reveal-on-scroll.is-visible {
   transform: translate(-50%, -50%);
 }
 
-.weather-meta.reveal-on-scroll {
+.reveal-ready .weather-meta.reveal-on-scroll:not(.is-visible) {
   transform: translate(-50%, var(--reveal-y));
+}
+
+.weather-meta.reveal-on-scroll {
+  transform: translateX(-50%);
 }
 
 .weather-meta.reveal-on-scroll.is-visible {
   transform: translateX(-50%);
 }
 
-.hero-machine.reveal-on-scroll {
+.reveal-ready .hero-machine.reveal-on-scroll:not(.is-visible) {
   transform: translateY(calc(-50% + var(--reveal-y))) perspective(1000px) rotateY(-18deg) rotateX(5deg);
+}
+
+.hero-machine.reveal-on-scroll {
+  transform: translateY(-50%) perspective(1000px) rotateY(-18deg) rotateX(5deg);
 }
 
 .hero-machine.reveal-on-scroll.is-visible {

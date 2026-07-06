@@ -575,9 +575,20 @@ export function HomeExperience() {
 
   useEffect(() => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>(".reveal-on-scroll"));
+    const root = document.documentElement;
+
+    elements.forEach((element, index) => {
+      element.style.setProperty("--reveal-delay", `${Math.min(index % 4, 3) * 70}ms`);
+      const rect = element.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 0.92 && rect.bottom > 0) {
+        element.classList.add("is-visible");
+      }
+    });
+    root.classList.add("reveal-ready");
 
     if (!("IntersectionObserver" in window)) {
       elements.forEach((element) => element.classList.add("is-visible"));
+      root.classList.remove("reveal-ready");
       return;
     }
 
@@ -592,12 +603,12 @@ export function HomeExperience() {
       { threshold: 0.16, rootMargin: "0px 0px -8% 0px" },
     );
 
-    elements.forEach((element, index) => {
-      element.style.setProperty("--reveal-delay", `${Math.min(index % 4, 3) * 70}ms`);
-      observer.observe(element);
-    });
+    elements.forEach((element) => observer.observe(element));
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      root.classList.remove("reveal-ready");
+    };
   }, []);
 
   useEffect(() => {
