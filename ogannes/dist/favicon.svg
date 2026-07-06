@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ogannes Study">
+  <rect width="64" height="64" rx="14" fill="#101918"/>
+  <path d="M14 47h36" stroke="#b3833f" stroke-width="3" stroke-linecap="round"/>
+  <path d="M23 45V25l9-8 9 8v20" fill="#fffaf1" stroke="#b3833f" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M32 10l4 7h-8l4-7Z" fill="#b3833f"/>
+  <path d="M28 31h8M28 37h8" stroke="#315e50" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M19 24c-4 4-6 9-5 15M45 24c4 4 6 9 5 15" fill="none" stroke="#d7ba78" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M14 39c3-1 5-3 6-6M50 39c-3-1-5-3-6-6" fill="none" stroke="#d7ba78" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M21 50h22" stroke="#fffaf1" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="44" cy="46" r="5" fill="#a8473d"/>
+  <path d="M41 46l2 2 4-5" fill="none" stroke="#fffaf1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

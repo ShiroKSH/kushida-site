@@ -30,6 +30,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 next-dev*.log
+ogannes/data/*.json
+ogannes/data/*.log
 
 # env files (can opt-in for committing if needed)
 .env*
