@@ -87,6 +87,29 @@ a{color:#7df7d5;font-weight:800}
   res.end(body);
 }
 
+function sendMainError(res, error) {
+  console.error("Main site request failed:", error);
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  res.writeHead(500, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(`<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ошибка сайта</title></head>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1514;color:white;font:18px system-ui,sans-serif">
+<main style="max-width:560px;padding:28px;text-align:center">
+<h1>Главная временно не ответила</h1>
+<p>Ogannes доступен тут: <a style="color:#7df7d5" href="/ogannes">kushida.tech/ogannes</a></p>
+</main>
+</body>
+</html>`);
+}
+
 function appendAdminSeenCookie(headers) {
   const marker = `${adminSeenCookie}=1; Path=/; SameSite=Lax; Max-Age=${365 * 24 * 60 * 60}`;
   const existing = headers["set-cookie"];
@@ -154,17 +177,21 @@ function startOgannes() {
 startOgannes();
 
 app.prepare().then(() => {
-  createServer((req, res) => {
+  createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host || `localhost:${port}`}`);
-    if (url.pathname.startsWith("/ogannes")) {
-      proxyOgannes(req, res, url);
-      return;
+    try {
+      if (url.pathname.startsWith("/ogannes")) {
+        proxyOgannes(req, res, url);
+        return;
+      }
+      if (shouldProtectMain(req, url.pathname)) {
+        sendWrongSite(res);
+        return;
+      }
+      await handle(req, res);
+    } catch (error) {
+      sendMainError(res, error);
     }
-    if (shouldProtectMain(req, url.pathname)) {
-      sendWrongSite(res);
-      return;
-    }
-    handle(req, res);
   }).listen(port, hostname, () => {
     console.log(`Main site: http://localhost:${port}`);
     console.log(`Ogannes: http://localhost:${port}/ogannes`);
