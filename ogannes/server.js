@@ -769,12 +769,13 @@ async function handleApi(req, res, url) {
     const name = cleanString(body.name, 80);
     const telegram = cleanString(body.telegram, 80);
     const courseId = cleanString(body.courseId || defaultCourse.id, 80);
+    const forceNew = Boolean(body.forceNew);
     if (!name) {
       sendJson(res, 400, { error: 'name-required' });
       return true;
     }
     const db = loadDb();
-    let student = db.students.find((item) => telegram && item.telegram.toLowerCase() === telegram.toLowerCase());
+    let student = forceNew ? null : db.students.find((item) => telegram && item.telegram.toLowerCase() === telegram.toLowerCase());
     if (!student) {
       student = { id: createId('student'), name, telegram, botCode: createBotCode(), chatId: '', createdAt: Date.now() };
       db.students.push(student);

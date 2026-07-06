@@ -520,6 +520,20 @@ textarea:disabled {
   padding: 18px;
 }
 
+.student-profile-row {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.student-card .ghost-button {
+  background: #fffdf8;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 750;
+}
+
 label {
   display: grid;
   font-weight: 750;

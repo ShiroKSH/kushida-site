@@ -186,6 +186,7 @@ export default function App() {
   const [state, setState] = useState({ courses: [], assignments: [], submissions: [], topicNotes: {}, bot: {} });
   const [student, setStudent] = useState(loadStudent);
   const [studentForm, setStudentForm] = useState({ name: '', telegram: '' });
+  const [forceNewStudent, setForceNewStudent] = useState(false);
   const [solutionDrafts, setSolutionDrafts] = useState(loadSolutionDrafts);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
   const [sections, setSections] = useState([]);
@@ -447,11 +448,21 @@ export default function App() {
 
   const registerStudent = async (event) => {
     event.preventDefault();
-    const next = await api('/api/students', { method: 'POST', body: { ...studentForm, courseId: activeCourseId } });
+    const next = await api('/api/students', { method: 'POST', body: { ...studentForm, courseId: activeCourseId, forceNew: forceNewStudent } });
     setStudent(next.student);
     saveStudent(next.student);
     setState(next.state);
+    setForceNewStudent(false);
     setToast('Профиль готов. Можно сдавать ДЗ.');
+  };
+
+  const changeStudentAccount = () => {
+    setStudentForm({ name: student?.name || '', telegram: '' });
+    setStudent(null);
+    saveStudent(null);
+    setForceNewStudent(true);
+    setState((previous) => ({ ...previous, submissions: [], student: null }));
+    setToast('Введи аккаунт заново. Сайт выдаст новый код для бота.');
   };
 
   const loginAccess = async (event) => {
@@ -909,7 +920,10 @@ export default function App() {
             </form>
           ) : (
             <section className="student-card">
-              <div><p>профиль</p><h2>{student.name}</h2><span>{student.telegram || 'Telegram не указан'}</span></div>
+              <div className="student-profile-row">
+                <div><p>профиль</p><h2>{student.name}</h2><span>{student.telegram || 'Telegram не указан'}</span></div>
+                <button className="ghost-button" onClick={changeStudentAccount} type="button">сменить аккаунт</button>
+              </div>
               <div className="bot-code"><span>код для бота</span><strong>{student.botCode}</strong></div>
               <p className="muted">Отправь этот код в Telegram-бота. Потом туда будет приходить фидбек.</p>
             </section>
