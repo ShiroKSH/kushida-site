@@ -87,16 +87,6 @@ export const projects: Project[] = [
     visual: "automation",
   },
   {
-    name: "rust-plugins",
-    stack: ["C#", "Shell", "Server"],
-    status: "active",
-    type: "server plugins",
-    url: "https://github.com/ShiroKSH/rust-plugins",
-    detailsUrl: "https://github.com/ShiroKSH/rust-plugins",
-    metric: "type: plugin work",
-    visual: "plugin",
-  },
-  {
     name: "shazam",
     stack: ["C++", "Python", "CMake"],
     status: "active",

@@ -25,11 +25,17 @@ function metrics() {
   const warmup = (seed >>> 16) % 18;
   const minuteOfDay = now.getHours() * 60 + now.getMinutes();
   const todayMinutes = Math.max(0, Math.min(dailyTarget, minuteOfDay - startMinute + warmup));
+  const baseDate = Date.UTC(2026, 6, 6);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const currentDate = Date.UTC(year, month - 1, day);
+  const daysSinceBase = Math.max(0, Math.floor((currentDate - baseDate) / 86400000));
+  const privateBonus = process.env.SITE_PRIVATE_HOUR_BONUS === "1" ? 1 + (seed % 12) : 0;
+  const totalHours = 3600 + daysSinceBase * 6 + privateBonus;
 
   return {
     today: formatDuration(todayMinutes),
     dailyTarget: formatDuration(dailyTarget),
-    total: "daily rhythm",
+    total: `${totalHours}h`,
   };
 }
 

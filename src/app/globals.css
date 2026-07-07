@@ -34,7 +34,7 @@ html {
   max-width: 100%;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  scroll-snap-type: y mandatory;
+  scroll-snap-type: none;
   background: var(--background);
 }
 
@@ -126,7 +126,8 @@ button {
 }
 
 .scene-noise {
-  z-index: 3;
+  display: none;
+  z-index: 0;
   opacity: 0.24;
   mix-blend-mode: overlay;
   background-image:
@@ -309,7 +310,8 @@ button {
 }
 
 .ambient-rain {
-  opacity: 0.3;
+  display: none;
+  opacity: 0;
   background-image:
     repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.15) 0 1px, transparent 1px 34px),
     repeating-linear-gradient(102deg, transparent 0 18px, rgba(94, 241, 211, 0.09) 18px 19px, transparent 19px 54px);
@@ -317,7 +319,7 @@ button {
   filter: blur(0.25px);
   mask-image: linear-gradient(180deg, transparent, black 8%, black 82%, transparent);
   mix-blend-mode: screen;
-  animation: ambient-rain-fall 1.8s linear infinite;
+  animation: none;
 }
 
 .ambient-rain::after {
@@ -327,17 +329,47 @@ button {
   opacity: 0.42;
   background-image: repeating-linear-gradient(102deg, transparent 0 24px, rgba(255, 188, 112, 0.1) 24px 25px, transparent 25px 70px);
   background-size: 420px 420px;
-  animation: ambient-rain-fall 2.8s linear infinite reverse;
+  animation: none;
 }
 
 .weather-rain {
-  opacity: 0.12;
+  display: none;
+  opacity: 0;
   background-image:
     repeating-linear-gradient(102deg, rgba(242, 238, 230, 0.18) 0 1px, transparent 1px 24px),
     repeating-linear-gradient(102deg, transparent 0 12px, rgba(94, 241, 211, 0.1) 12px 13px, transparent 13px 34px);
   background-size: 180px 180px, 260px 260px;
-  animation: rain-fall 0.7s linear infinite;
+  animation: none;
   mix-blend-mode: screen;
+}
+
+.ops-shell[data-weather="drizzle"] .ambient-rain,
+.ops-shell[data-weather="rain"] .ambient-rain,
+.ops-shell[data-weather="storm"] .ambient-rain,
+.ops-shell[data-weather="drizzle"] .weather-rain,
+.ops-shell[data-weather="rain"] .weather-rain,
+.ops-shell[data-weather="storm"] .weather-rain,
+.ops-shell[data-weather="snow"] .weather-rain {
+  display: block;
+}
+
+.ops-shell[data-weather="drizzle"] .ambient-rain,
+.ops-shell[data-weather="rain"] .ambient-rain,
+.ops-shell[data-weather="storm"] .ambient-rain {
+  animation: ambient-rain-fall 1.8s linear infinite;
+}
+
+.ops-shell[data-weather="drizzle"] .ambient-rain::after,
+.ops-shell[data-weather="rain"] .ambient-rain::after,
+.ops-shell[data-weather="storm"] .ambient-rain::after {
+  animation: ambient-rain-fall 2.8s linear infinite reverse;
+}
+
+.ops-shell[data-weather="drizzle"] .weather-rain,
+.ops-shell[data-weather="rain"] .weather-rain,
+.ops-shell[data-weather="storm"] .weather-rain,
+.ops-shell[data-weather="snow"] .weather-rain {
+  animation: rain-fall 0.7s linear infinite;
 }
 
 .ops-shell[data-weather="drizzle"] .weather-rain {
@@ -510,14 +542,16 @@ button {
 
 .ops-shell[data-ambient="off"] .scene-bubbles,
 .ops-shell[data-ambient="off"] .scene-stars,
-.ops-shell[data-ambient="off"] .ambient-rain {
+.ops-shell[data-ambient="off"] .ambient-rain,
+.ops-shell[data-ambient="off"] .weather-rain {
   opacity: 0.1;
+  animation: none;
 }
 
 .side-rail {
   position: fixed;
   inset: 0 auto 0 0;
-  z-index: 30;
+  z-index: 70;
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: 210px;
@@ -607,7 +641,8 @@ button {
   position: fixed;
   top: 26px;
   left: 50%;
-  z-index: 35;
+  z-index: 190;
+  pointer-events: none;
   transform: translateX(-50%);
 }
 
@@ -615,10 +650,11 @@ button {
   position: fixed;
   top: 26px;
   right: 28px;
-  z-index: 42;
+  z-index: 220;
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  pointer-events: auto;
 }
 
 .signal-chip,
@@ -641,7 +677,7 @@ button {
   border: 1px solid var(--line);
   background: var(--panel);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(6px);
 }
 
 .signal-chip {
@@ -674,6 +710,8 @@ button {
 
 .top-actions > button,
 .language-menu > button {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -699,12 +737,14 @@ button {
 
 .language-menu {
   position: relative;
+  z-index: 225;
 }
 
 .language-menu > div {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
+  z-index: 230;
   display: grid;
   width: 112px;
   padding: 6px;
@@ -729,7 +769,7 @@ button {
   position: fixed;
   top: 76px;
   right: 28px;
-  z-index: 41;
+  z-index: 215;
   width: min(360px, calc(100vw - 36px));
   max-height: calc(100svh - 96px);
   overflow: auto;
@@ -998,9 +1038,14 @@ button {
 .scene {
   position: relative;
   min-height: 100svh;
-  scroll-snap-align: start;
+  scroll-snap-align: none;
   overflow: hidden;
   padding: 110px clamp(24px, 5vw, 92px) 90px 250px;
+}
+
+.scene:not(.scene-home) {
+  content-visibility: auto;
+  contain-intrinsic-size: 100svh;
 }
 
 .scene::before {
@@ -1064,11 +1109,13 @@ button {
   position: absolute;
   top: calc(26% + 88px);
   left: 58%;
+  z-index: 180;
   flex-wrap: wrap;
   justify-content: center;
   width: min(520px, calc(100vw - 560px));
   color: rgba(238, 245, 255, 0.42);
   font-family: var(--font-geist-mono), monospace;
+  pointer-events: none;
   transform: translateX(-50%);
   transition: top 520ms ease;
 }
@@ -1088,6 +1135,9 @@ button {
 }
 
 .location-trigger {
+  position: relative;
+  z-index: 181;
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1108,7 +1158,7 @@ button {
   position: absolute;
   top: calc(26% + 132px);
   left: 58%;
-  z-index: 12;
+  z-index: 185;
   display: grid;
   width: 264px;
   padding: 10px;
@@ -1147,7 +1197,14 @@ button {
   position: absolute;
   left: 250px;
   bottom: 11svh;
+  z-index: 32;
   width: min(620px, calc(100vw - 520px));
+  pointer-events: none;
+}
+
+.hero-copy-v3 a,
+.hero-copy-v3 button {
+  pointer-events: auto;
 }
 
 .hero-copy-v3 h1 {
@@ -1185,6 +1242,9 @@ button {
 }
 
 .hero-copy-v3 a {
+  position: relative;
+  z-index: 31;
+  pointer-events: auto;
   min-width: 118px;
   clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
@@ -1199,9 +1259,11 @@ button {
   position: absolute;
   top: 53%;
   right: clamp(28px, 7vw, 110px);
+  z-index: 4;
   width: clamp(280px, 25vw, 390px);
   height: 330px;
   opacity: 0.92;
+  pointer-events: none;
   transform: translateY(-50%) perspective(1000px) rotateY(-18deg) rotateX(5deg);
   transform-style: preserve-3d;
 }
@@ -1225,7 +1287,7 @@ button {
     0 0 48px rgba(94, 241, 211, 0.08),
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
     inset 0 -36px 72px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(4px) saturate(1.05);
   clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 26px, 100% 100%, 0 100%);
 }
 
@@ -1490,12 +1552,15 @@ button {
 }
 
 .social-grid {
+  position: relative;
+  z-index: 20;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .social-grid a {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -2030,13 +2095,12 @@ button {
   transform: translateY(0);
   transition:
     opacity 760ms ease var(--reveal-delay),
-    filter 760ms ease var(--reveal-delay),
     transform 760ms cubic-bezier(0.19, 1, 0.22, 1) var(--reveal-delay);
 }
 
 .reveal-ready .reveal-on-scroll:not(.is-visible) {
   opacity: 0;
-  filter: blur(8px);
+  filter: none;
   transform: translateY(var(--reveal-y));
 }
 
@@ -2183,7 +2247,7 @@ button {
 
 @media (max-width: 860px) {
   html {
-    scroll-snap-type: y proximity;
+    scroll-snap-type: none;
   }
 
   .side-rail {
@@ -2448,6 +2512,307 @@ button {
   }
 }
 
+@media (max-width: 860px) {
+  .top-actions {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .top-actions > button,
+  .language-menu > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 8px;
+  }
+
+  .language-menu {
+    min-width: 0;
+  }
+
+  .language-menu > div {
+    right: 0;
+    left: auto;
+    width: min(180px, calc(100vw - 24px));
+  }
+
+  .top-hud {
+    top: 62px;
+    right: 12px;
+    left: 12px;
+    transform: none;
+  }
+
+  .signal-chip {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .scene-controls {
+    top: 110px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100svh - 124px);
+  }
+
+  .scene {
+    padding-top: 132px;
+  }
+
+  .scene-home {
+    align-content: start;
+    justify-items: stretch;
+  }
+
+  .weather-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: min(100%, 420px);
+    margin: 0 auto;
+  }
+
+  .weather-meta > span,
+  .weather-meta > i,
+  .weather-meta > em {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .location-trigger {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .location-menu {
+    width: min(100%, 420px);
+    margin: 8px auto 0;
+  }
+}
+
+@media (max-width: 640px) {
+  html,
+  body,
+  .ops-shell {
+    overflow-x: clip;
+  }
+
+  .scene {
+    overflow-x: hidden;
+  }
+
+  .scene-controls {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hero-copy-v3,
+  .weather-meta,
+  .location-menu {
+    max-width: 360px;
+  }
+
+  .location-menu {
+    max-height: 42svh;
+    overflow-y: auto;
+  }
+
+  .hero-copy-v3 h1 {
+    line-height: 0.96;
+    overflow-wrap: anywhere;
+  }
+
+  .hero-copy-v3 h2 {
+    margin-top: 14px;
+    font-size: 1rem;
+  }
+
+  .hero-copy-v3 span,
+  .scene-copy span,
+  .collab-terminal > span {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .hero-copy-v3 div {
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .hero-copy-v3 a {
+    min-height: 40px;
+  }
+
+  .weather-readout {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  .weather-readout button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .location-list button {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+
+  .location-list button,
+  .weather-presets button {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .weather-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .github-panel,
+  .collab-terminal,
+  .contact-console {
+    padding: 16px;
+  }
+
+  .project-files,
+  .skill-cluster,
+  .social-grid,
+  .live-ribbon {
+    grid-template-columns: 1fr;
+  }
+
+  .github-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .project-file {
+    grid-template-columns: 44px minmax(0, 1fr);
+    min-height: auto;
+    padding: 14px;
+  }
+
+  .project-file *,
+  .collab-terminal code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .collab-terminal code {
+    display: grid;
+    gap: 4px;
+  }
+
+  .tech-dock {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 10px;
+    padding-bottom: 18px;
+    perspective: none;
+  }
+
+  .tech-dock button {
+    min-height: 84px;
+    overflow: hidden;
+    transform: none !important;
+  }
+
+  .tech-dock button::before,
+  .tech-dock button::after,
+  .tech-dock .tech-tooltip {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .top-actions {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    gap: 6px;
+  }
+
+  .top-actions > button,
+  .language-menu > button {
+    min-height: 40px;
+    padding: 0 6px;
+  }
+
+  .language-trigger {
+    font-size: 0.72rem;
+  }
+
+  .top-hud {
+    top: 56px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .scene-controls {
+    top: 102px;
+    right: 10px;
+    left: 10px;
+    max-height: calc(100svh - 112px);
+    padding: 12px;
+  }
+
+  .control-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .scene {
+    padding: 118px 14px 48px;
+  }
+
+  .scene::before {
+    display: none;
+  }
+
+  .scene-home {
+    gap: 12px;
+    min-height: auto;
+  }
+
+  .hero-status {
+    gap: 5px;
+  }
+
+  .hero-status span {
+    font-size: clamp(2.4rem, 15vw, 3.2rem);
+  }
+
+  .weather-meta {
+    grid-template-columns: 1fr 1fr;
+    font-size: 0.82rem;
+  }
+
+  .hero-copy-v3 {
+    margin-top: 8px;
+  }
+
+  .hero-copy-v3 h1 {
+    font-size: clamp(2.35rem, 15vw, 3rem);
+  }
+
+  .hero-machine {
+    display: none;
+  }
+
+  .scroll-cue {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2457,4 +2822,55 @@ button {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Keep the HUD controls above decorative/content layers on every viewport. */
+.ops-shell .top-actions {
+  z-index: 260 !important;
+  pointer-events: auto !important;
+}
+
+.ops-shell .top-hud {
+  z-index: 250 !important;
+  pointer-events: none !important;
+}
+
+.ops-shell .scene-controls {
+  z-index: 255 !important;
+  pointer-events: auto !important;
+}
+
+.ops-shell .weather-meta {
+  z-index: 245 !important;
+  pointer-events: none !important;
+}
+
+.ops-shell .location-trigger {
+  position: relative !important;
+  z-index: 246 !important;
+  pointer-events: auto !important;
+}
+
+.ops-shell .location-menu {
+  z-index: 247 !important;
+  pointer-events: auto !important;
+}
+
+.ops-shell .hero-copy-v3 {
+  z-index: 32 !important;
+  pointer-events: none !important;
+}
+
+.ops-shell .hero-copy-v3 h1,
+.ops-shell .hero-copy-v3 h2,
+.ops-shell .hero-copy-v3 p,
+.ops-shell .hero-copy-v3 span {
+  pointer-events: none !important;
+}
+
+.ops-shell .hero-copy-v3 a,
+.ops-shell .hero-copy-v3 button {
+  position: relative !important;
+  z-index: 33 !important;
+  pointer-events: auto !important;
 }

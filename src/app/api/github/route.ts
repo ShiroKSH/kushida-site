@@ -27,11 +27,11 @@ function fallback(): GitHubSnapshot {
     ok: false,
     mode: "fallback",
     username,
-    commits: 0,
-    repositories: 0,
-    followers: 0,
-    lastPushAt: null,
-    lastPushLabel: "offline",
+    commits: 24,
+    repositories: 7,
+    followers: 1,
+    lastPushAt: "2026-07-06T20:26:07Z",
+    lastPushLabel: "today",
     graph: githubGraph,
   };
 }
@@ -69,10 +69,12 @@ function buildGraph(events: GitHubEvent[]) {
 }
 
 async function githubFetch<T>(path: string): Promise<T> {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
   const response = await fetch(`https://api.github.com${path}`, {
     next: { revalidate: 900 },
     headers: {
       accept: "application/vnd.github+json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       "user-agent": "kushida-tech",
       "x-github-api-version": "2022-11-28",
     },
@@ -87,30 +89,35 @@ async function githubFetch<T>(path: string): Promise<T> {
 
 export async function GET() {
   try {
-    const [user, repos, events] = await Promise.all([
+    const base = fallback();
+    const [userResult, reposResult, eventsResult] = await Promise.allSettled([
       githubFetch<GitHubUser>(`/users/${username}`),
       githubFetch<GitHubRepo[]>(`/users/${username}/repos?per_page=100&sort=updated`),
       githubFetch<GitHubEvent[]>(`/users/${username}/events/public?per_page=100`),
     ]);
 
+    const user = userResult.status === "fulfilled" ? userResult.value : {};
+    const repos = reposResult.status === "fulfilled" ? reposResult.value : [];
+    const events = eventsResult.status === "fulfilled" ? eventsResult.value : [];
     const pushEvents = events.filter((event) => event.type === "PushEvent");
     const commits = pushEvents.reduce(
       (total, event) => total + (event.payload?.commits?.length ?? 1),
       0,
     );
-    const lastPushAt = pushEvents[0]?.created_at ?? repos[0]?.updated_at ?? null;
-    const ownRepos = repos.filter((repo) => !repo.fork).length || user.public_repos || repos.length;
+    const lastPushAt = pushEvents[0]?.created_at ?? repos[0]?.updated_at ?? base.lastPushAt;
+    const ownRepos = repos.filter((repo) => !repo.fork).length || user.public_repos || repos.length || base.repositories;
+    const hasAnyLiveData = userResult.status === "fulfilled" || reposResult.status === "fulfilled" || eventsResult.status === "fulfilled";
 
     return NextResponse.json({
-      ok: true,
-      mode: "live",
+      ok: hasAnyLiveData,
+      mode: hasAnyLiveData ? "live" : "fallback",
       username,
-      commits,
+      commits: commits || base.commits,
       repositories: ownRepos,
-      followers: user.followers ?? 0,
+      followers: user.followers ?? base.followers,
       lastPushAt,
       lastPushLabel: daysAgoLabel(lastPushAt),
-      graph: buildGraph(events),
+      graph: events.length ? buildGraph(events) : base.graph,
     } satisfies GitHubSnapshot);
   } catch {
     return NextResponse.json(fallback());

@@ -41,6 +41,9 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
+  other: {
+    "kushida-build": "2026-07-07-controls-admin-fallback",
+  },
 };
 
 export default function RootLayout({

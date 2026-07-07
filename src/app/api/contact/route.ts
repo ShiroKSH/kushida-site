@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const lastContactByIp = new Map<string, number>();
+const contactCooldownMs = 15_000;
 
 function secret(name: "TELEGRAM_BOT_TOKEN" | "TELEGRAM_CHAT_ID") {
-  return process.env[name] ?? "";
+  const scopedName = `KUSHIDA_${name}` as const;
+  return process.env[scopedName] ?? process.env[name] ?? "";
 }
 
 function clientIp(request: Request) {
@@ -18,6 +20,13 @@ function clientIp(request: Request) {
 
 function clean(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function chatIds() {
+  return secret("TELEGRAM_CHAT_ID")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function formatMoscowTime(date: Date) {
@@ -44,19 +53,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Validation failed" }, { status: 422 });
   }
 
-  if (name.length < 2 || contact.length < 3 || message.length < 15) {
+  if (name.length < 1 || contact.length < 2 || message.length < 2) {
     return NextResponse.json({ ok: false, error: "Validation failed" }, { status: 422 });
   }
 
   const ip = clientIp(request);
   const lastContact = lastContactByIp.get(ip) ?? 0;
-  if (Date.now() - lastContact < 60_000) {
+  if (Date.now() - lastContact < contactCooldownMs) {
     return NextResponse.json({ ok: false, error: "Rate limited" }, { status: 429 });
   }
 
   const token = secret("TELEGRAM_BOT_TOKEN");
-  const chatId = secret("TELEGRAM_CHAT_ID");
-  if (!token || !chatId) {
+  const targets = chatIds();
+  if (!token || targets.length === 0) {
     return NextResponse.json({ ok: false, error: "Telegram is not configured" }, { status: 500 });
   }
 
@@ -70,18 +79,26 @@ export async function POST(request: Request) {
     message,
   ].join("\n");
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: "true",
-    }),
-  });
+  const results = await Promise.allSettled(
+    targets.map(async (chatId) => {
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          chat_id: chatId,
+          text,
+          disable_web_page_preview: "true",
+        }),
+      });
 
-  const result = (await response.json().catch(() => null)) as { ok?: boolean } | null;
-  if (!response.ok || result?.ok !== true) {
+      const result = (await response.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(result?.description || `telegram-${response.status}`);
+      }
+    }),
+  );
+
+  if (!results.some((result) => result.status === "fulfilled")) {
     return NextResponse.json({ ok: false, error: "Telegram rejected the message" }, { status: 502 });
   }
 

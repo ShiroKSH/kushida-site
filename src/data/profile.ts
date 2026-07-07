@@ -5,6 +5,8 @@ export const profile = {
   description:
     "I build fullstack interfaces, services, bots, automation tools, game-server utilities and developer-focused software.",
   githubUrl: "https://github.com/ShiroKSH",
+  telegramUrl: "https://t.me/KushidaSh",
+  discordUrl: "",
   location: "based in Europe",
   availability: "available for selected projects",
   activity: "currently building personal developer tools",

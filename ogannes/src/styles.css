@@ -573,6 +573,16 @@ textarea {
   letter-spacing: 0.08em;
 }
 
+.bot-code-linked {
+  background: #e0eee7;
+  border: 1px solid rgba(49, 94, 80, 0.24);
+}
+
+.bot-code-linked strong {
+  color: var(--moss);
+  letter-spacing: 0;
+}
+
 .assignment-list,
 .admin-list,
 .answers-list {
@@ -836,6 +846,23 @@ textarea {
 
 .admin-list h3 {
   margin: 0;
+}
+
+.access-list article {
+  overflow: hidden;
+}
+
+.access-list small {
+  color: var(--muted);
+  display: block;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.access-list span {
+  overflow-wrap: anywhere;
 }
 
 .course-editor-screen {
@@ -1273,5 +1300,274 @@ textarea {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark-blue app shell; the course document inside iframe keeps its own readable theme. */
+:root {
+  --ink: #eef6ff;
+  --muted: #9fb1c8;
+  --paper: #07111f;
+  --card: #0e1b2d;
+  --line: #25415f;
+  --night: #050b14;
+  --moss: #2f7f94;
+  --blue: #55a8d5;
+  --gold: #d6aa65;
+  --red: #ff7b72;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+body {
+  background:
+    linear-gradient(180deg, #081321 0%, #07111f 42%, #050b14 100%);
+}
+
+.app-shell {
+  background: transparent;
+}
+
+.topbar {
+  background: rgba(5, 11, 20, 0.96);
+  border-bottom-color: rgba(214, 170, 101, 0.72);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28);
+}
+
+.brand-button {
+  min-height: 44px;
+}
+
+.brand-button span {
+  color: var(--gold);
+}
+
+.main-tabs {
+  background: rgba(11, 26, 44, 0.96);
+  border-color: rgba(151, 184, 216, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.main-tabs button,
+.admin-head nav button {
+  color: rgba(238, 246, 255, 0.7);
+}
+
+.main-tabs button.active,
+.admin-head nav button.active {
+  background: #eef6ff;
+  color: #07111f;
+}
+
+.catalog-view,
+.homework-view,
+.admin-view {
+  color: var(--ink);
+}
+
+.catalog-hero {
+  background: #0b1a2c;
+  border: 1px solid rgba(151, 184, 216, 0.16);
+}
+
+.course-card,
+.student-card,
+.assignment-card,
+.login-card,
+.editor-card,
+.admin-list article,
+.answer-card,
+.teacher-note,
+.status-card,
+.solution-workspace,
+.access-card {
+  background: rgba(14, 27, 45, 0.96);
+  border-color: rgba(151, 184, 216, 0.18);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.catalog-hero span,
+.course-card em,
+.student-card span,
+.assignment-actions span,
+.muted,
+.admin-list span,
+.problem-statement > p,
+.solution-status,
+.assignment-card > p {
+  color: var(--muted);
+}
+
+input,
+select,
+textarea {
+  background: #081625;
+  border-color: rgba(151, 184, 216, 0.22);
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(159, 177, 200, 0.58);
+}
+
+.learn-view {
+  background: #07111f;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+}
+
+.course-side {
+  background: #081625;
+  border-right-color: rgba(151, 184, 216, 0.18);
+  box-shadow: 12px 0 34px rgba(0, 0, 0, 0.16);
+}
+
+.side-head {
+  align-items: center;
+  border-bottom: 1px solid rgba(151, 184, 216, 0.16);
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
+.side-head h2 {
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.side-head button,
+.course-toolbar button,
+.admin-list button,
+.answer-card button,
+.row-actions button:first-child {
+  background: #0e1b2d;
+  border-color: rgba(151, 184, 216, 0.22);
+  color: var(--ink);
+}
+
+.topic-list {
+  gap: 5px;
+}
+
+.topic-group {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin: 16px 0 7px;
+  padding: 0 4px;
+  text-transform: uppercase;
+}
+
+.topic-group:first-child {
+  margin-top: 0;
+}
+
+.topic-list button {
+  background: rgba(14, 27, 45, 0.74);
+  border-color: rgba(151, 184, 216, 0.14);
+  color: rgba(238, 246, 255, 0.82);
+  min-height: 44px;
+  padding: 9px 11px;
+}
+
+.topic-list button:hover {
+  background: rgba(21, 42, 68, 0.96);
+  border-color: rgba(85, 168, 213, 0.35);
+}
+
+.topic-list button.active {
+  background: rgba(47, 127, 148, 0.22);
+  border-left-color: var(--blue);
+  color: white;
+}
+
+.topic-list button.topic-sub {
+  margin-left: 14px;
+  min-height: 38px;
+  opacity: 0.86;
+}
+
+.topic-list button.topic-sub span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.topic-list span {
+  line-height: 1.28;
+}
+
+.course-stage {
+  background: #050b14;
+}
+
+.course-toolbar {
+  background: #081625;
+  border-bottom: 1px solid rgba(151, 184, 216, 0.16);
+}
+
+.course-toolbar span {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.course-frame {
+  background: #fffdf8;
+}
+
+.homework-head a,
+.student-card button,
+.assignment-actions button,
+.solution-toolbar button,
+.login-card button,
+.access-card button,
+.editor-card button,
+.row-actions button:last-child {
+  background: var(--moss);
+  border-color: var(--moss);
+}
+
+.student-card .ghost-button,
+.solution-toolbar button:first-child {
+  background: #0b1a2c;
+  border-color: rgba(151, 184, 216, 0.22);
+  color: var(--ink);
+}
+
+.bot-code {
+  background: rgba(214, 170, 101, 0.16);
+}
+
+.bot-code-linked,
+.solution-help,
+.feedback-box,
+.import-preview {
+  background: rgba(85, 168, 213, 0.12);
+}
+
+@media (max-width: 860px) {
+  .learn-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .course-side {
+    border-bottom: 1px solid rgba(151, 184, 216, 0.18);
+    border-right: 0;
+    max-height: 42svh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .topic-list button.topic-sub {
+    margin-left: 8px;
+  }
+}
+
+@media (max-width: 920px) {
+  .main-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

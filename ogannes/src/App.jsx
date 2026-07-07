@@ -6,13 +6,6 @@ const SIDE_KEY = 'ogannes-study-shell:v3:side-open';
 const ACCESS_CACHE_KEY = 'ogannes-study-shell:v3:access-ok';
 const SOLUTION_KEY = 'ogannes-study-shell:v3:solution-drafts';
 
-const STATUS_META = {
-  new: { label: 'новая', weight: 0 },
-  reading: { label: 'читаю', weight: 1 },
-  understood: { label: 'понял', weight: 2 },
-  exam: { label: 'готов', weight: 3 }
-};
-
 function progressKey(courseId) {
   return `ogannes-study-shell:v3:progress:${courseId || 'iogp'}`;
 }
@@ -178,11 +171,9 @@ export default function App() {
 
   const [accessAllowed, setAccessAllowed] = useState(false);
   const [accessChecking, setAccessChecking] = useState(true);
-  const [accessPassword, setAccessPassword] = useState('');
-  const [accessError, setAccessError] = useState('');
-  const [view, setView] = useState('catalog');
+  const [view, setView] = useState('learn');
   const [activeCourseId, setActiveCourseId] = useState(localStorage.getItem(ACTIVE_COURSE_KEY) || 'iogp');
-  const [sideOpen, setSideOpen] = useState(localStorage.getItem(SIDE_KEY) === 'true');
+  const [sideOpen, setSideOpen] = useState(localStorage.getItem(SIDE_KEY) !== 'false');
   const [state, setState] = useState({ courses: [], assignments: [], submissions: [], topicNotes: {}, bot: {} });
   const [student, setStudent] = useState(loadStudent);
   const [studentForm, setStudentForm] = useState({ name: '', telegram: '' });
@@ -227,20 +218,20 @@ export default function App() {
     return adminCourses.find((course) => course.id === taskDraft.courseId) || activeCourse;
   }, [activeCourse, adminCourses, taskDraft.courseId]);
 
+  const navigableSections = useMemo(() => sections.filter((topic) => topic.kind !== 'group'), [sections]);
+
   const taskTopics = useMemo(() => {
     if (taskCourseEditor?.courseId === taskDraft.courseId) return taskCourseEditor.sections || [];
-    return taskDraft.courseId === activeCourseId ? sections : [];
-  }, [activeCourseId, sections, taskCourseEditor, taskDraft.courseId]);
+    return taskDraft.courseId === activeCourseId ? navigableSections : [];
+  }, [activeCourseId, navigableSections, taskCourseEditor, taskDraft.courseId]);
 
   const currentTopic = useMemo(() => {
-    return sections.find((topic) => topic.id === (currentTopicId || progress.lastTopic)) || sections[0] || null;
-  }, [sections, currentTopicId, progress.lastTopic]);
+    return navigableSections.find((topic) => topic.id === (currentTopicId || progress.lastTopic)) || navigableSections[0] || null;
+  }, [navigableSections, currentTopicId, progress.lastTopic]);
 
   const progressStats = useMemo(() => {
-    const max = Math.max(sections.length * STATUS_META.exam.weight, 1);
-    const score = sections.reduce((sum, topic) => sum + (STATUS_META[progress.statuses[topic.id] || 'new']?.weight || 0), 0);
-    return { percent: Math.round((score / max) * 100) };
-  }, [progress.statuses, sections]);
+    return { total: navigableSections.length };
+  }, [navigableSections]);
 
   const submissionsByTask = useMemo(() => {
     return Object.fromEntries((state.submissions || []).map((item) => [item.assignmentId, item]));
@@ -306,6 +297,14 @@ export default function App() {
     if (!accessAllowed) return;
     refreshState(activeCourseId).catch(() => setToast('Сервер не отвечает'));
   }, [accessAllowed]);
+
+  useEffect(() => {
+    if (!accessAllowed || !student?.id || student.chatId) return;
+    const timer = window.setInterval(() => {
+      refreshState(activeCourseId, student.id).catch(() => {});
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [accessAllowed, activeCourseId, refreshState, student?.chatId, student?.id]);
 
   useEffect(() => {
     if (!accessAllowed) return;
@@ -402,27 +401,58 @@ export default function App() {
       @media(max-width:720px){.main{padding:16px 14px 72px!important}.section{margin-bottom:36px!important}.section-head{gap:10px!important}.drop-cap{font-size:50px!important}.cards{grid-template-columns:1fr!important}}`;
     doc.head.appendChild(style);
 
-    let nodes = Array.from(doc.querySelectorAll('main .section[id], .part-divider[id]'));
-    if (!nodes.length) {
-      nodes = Array.from(doc.querySelectorAll('main h1,main h2,main h3,body h1,body h2,body h3'));
+    const sidebarItems = Array.from(doc.querySelectorAll('.sidebar .sb-section-label, .sidebar a[href^="#"]'));
+    let parsed = sidebarItems
+      .map((node, index) => {
+        if (node.matches?.('a[href^="#"]')) {
+          const id = decodeURIComponent((node.getAttribute('href') || '').replace(/^#/, ''));
+          const target = id ? doc.getElementById(id) : null;
+          if (!target) return null;
+          return {
+            id,
+            kind: node.classList.contains('sb-sub-link') ? 'sub' : 'link',
+            title: cleanText(node.textContent) || `Тема ${index + 1}`,
+            meta: '',
+            text: cleanText(target.textContent)
+          };
+        }
+        return {
+          id: `group-${index}`,
+          kind: 'group',
+          title: cleanText(node.textContent),
+          meta: '',
+          text: ''
+        };
+      })
+      .filter((item) => item && item.title);
+
+    if (!parsed.some((item) => item.kind !== 'group')) {
+      let nodes = Array.from(doc.querySelectorAll('main .section[id], .part-divider[id]'));
+      if (!nodes.length) {
+        nodes = Array.from(doc.querySelectorAll('main h1,main h2,main h3,body h1,body h2,body h3'));
+      }
+      nodes.forEach((node, index) => {
+        if (!node.id) node.id = `topic-${index + 1}`;
+      });
+      parsed = nodes.map((node, index) => ({
+        id: node.id,
+        kind: 'link',
+        title: cleanText(node.querySelector?.('.section-title,.part-divider-title,h1,h2,h3')?.textContent || node.textContent) || `Тема ${index + 1}`,
+        meta: cleanText(node.querySelector?.('.section-period,.section-tag,.part-divider-label')?.textContent),
+        text: cleanText(node.textContent)
+      }));
     }
-    nodes.forEach((node, index) => {
-      if (!node.id) node.id = `topic-${index + 1}`;
-    });
-    const parsed = nodes.map((node, index) => ({
-      id: node.id,
-      title: cleanText(node.querySelector?.('.section-title,.part-divider-title,h1,h2,h3')?.textContent || node.textContent) || `Тема ${index + 1}`,
-      meta: cleanText(node.querySelector?.('.section-period,.section-tag,.part-divider-label')?.textContent),
-      text: cleanText(node.textContent)
-    }));
+
+    const navigable = parsed.filter((topic) => topic.kind !== 'group');
 
     const updateActive = () => {
       const y = win.scrollY + 120;
-      let active = parsed[0]?.id || '';
-      for (const topic of parsed) {
+      let active = navigable[0]?.id || '';
+      for (const topic of navigable) {
         const node = doc.getElementById(topic.id);
         if (node && node.offsetTop <= y) active = topic.id;
       }
+      if (!active) return;
       setCurrentTopicId(active);
       updateProgress((previous) => ({ ...previous, lastTopic: active, lastScroll: Math.round(win.scrollY) }));
     };
@@ -441,11 +471,6 @@ export default function App() {
 
   useEffect(() => () => cleanupFrameRef.current?.(), []);
 
-  const markTopic = (status) => {
-    if (!currentTopic) return;
-    updateProgress((previous) => ({ ...previous, statuses: { ...previous.statuses, [currentTopic.id]: status } }));
-  };
-
   const registerStudent = async (event) => {
     event.preventDefault();
     const next = await api('/api/students', { method: 'POST', body: { ...studentForm, courseId: activeCourseId, forceNew: forceNewStudent } });
@@ -463,20 +488,6 @@ export default function App() {
     setForceNewStudent(true);
     setState((previous) => ({ ...previous, submissions: [], student: null }));
     setToast('Введи аккаунт заново. Сайт выдаст новый код для бота.');
-  };
-
-  const loginAccess = async (event) => {
-    event.preventDefault();
-    setAccessError('');
-    try {
-      const next = await api('/api/access/login', { method: 'POST', body: { password: accessPassword } });
-      localStorage.setItem(ACCESS_CACHE_KEY, JSON.stringify({ ip: next.ip || '', at: Date.now() }));
-      setAccessPassword('');
-      setAccessAllowed(true);
-      await refreshState(activeCourseId).catch(() => setToast('Сервер не отвечает'));
-    } catch {
-      setAccessError('Пароль не подошел.');
-    }
   };
 
   const updateSolutionDraft = (assignmentId, value) => {
@@ -788,22 +799,12 @@ export default function App() {
   if (!accessAllowed) {
     return (
       <main className="access-screen">
-        <form className="access-card" onSubmit={loginAccess}>
+        <section className="access-card">
           <p>закрытый курс</p>
-          <h1>Вход по паролю</h1>
-          <span>После входа это устройство и IP будут пускаться сразу.</span>
-          <label>
-            Пароль
-            <input
-              autoFocus
-              onChange={(event) => setAccessPassword(event.target.value)}
-              type="password"
-              value={accessPassword}
-            />
-          </label>
-          <button type="submit">Открыть сайт</button>
-          {accessError ? <strong className="error-text">{accessError}</strong> : null}
-        </form>
+          <h1>Открываем курс</h1>
+          <span>Доступ выдаётся автоматически. Если сервер только поднялся, нажми повтор.</span>
+          <button onClick={checkAccess} type="button">Повторить</button>
+        </section>
       </main>
     );
   }
@@ -811,13 +812,11 @@ export default function App() {
   return (
     <div className={`app-shell view-${view}`}>
       <header className="topbar">
-        <button className="brand-button" onClick={() => setView('catalog')} type="button">
+        <button className="brand-button" onClick={() => setView('learn')} type="button">
           <span>© Туманян Оганнес · 2026</span>
-          <strong>{activeCourse?.title || 'Выберите курс'}</strong>
         </button>
         <nav className="main-tabs" aria-label="Главные разделы">
-          <button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')} type="button">Курсы</button>
-          <button className={view === 'learn' ? 'active' : ''} onClick={() => setView('learn')} type="button">Учусь</button>
+          <button className={view === 'learn' ? 'active' : ''} onClick={() => setView('learn')} type="button">Курс</button>
           <button className={view === 'homework' ? 'active' : ''} onClick={() => setView('homework')} type="button">ДЗ</button>
           <button className={view === 'admin' ? 'active' : ''} onClick={openAdmin} type="button">Админ</button>
         </nav>
@@ -851,32 +850,21 @@ export default function App() {
               <div className="side-head">
                 <div>
                   <p>курс</p>
-                  <h2>{activeCourse?.title}</h2>
+                  <h2>Оглавление</h2>
                 </div>
                 <button onClick={() => setSide(false)} type="button">скрыть</button>
               </div>
               {currentNote ? <div className="teacher-note"><p>для сдачи</p><strong>{currentNote}</strong></div> : null}
-              <div className="status-card">
-                <h3>Статус темы</h3>
-                <div className="big-status-grid">
-                  {Object.entries(STATUS_META).map(([status, meta]) => (
-                    <button
-                      className={(progress.statuses[currentTopic?.id] || 'new') === status ? 'active' : ''}
-                      key={status}
-                      onClick={() => markTopic(status)}
-                      type="button"
-                    >
-                      {meta.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className="topic-list">
                 {sections.map((topic) => (
-                  <button className={topic.id === currentTopic?.id ? 'active' : ''} key={topic.id} onClick={() => jumpToTopic(topic.id)} type="button">
-                    <span>{topic.title}</span>
-                    <em>{STATUS_META[progress.statuses[topic.id] || 'new'].label}</em>
-                  </button>
+                  topic.kind === 'group' ? (
+                    <div className="topic-group" key={topic.id}>{topic.title}</div>
+                  ) : (
+                    <button className={`${topic.kind === 'sub' ? 'topic-sub ' : ''}${topic.id === currentTopic?.id ? 'active' : ''}`} key={topic.id} onClick={() => jumpToTopic(topic.id)} type="button">
+                      <span>{topic.title}</span>
+                      {topic.meta ? <em>{topic.meta}</em> : null}
+                    </button>
+                  )
                 ))}
               </div>
             </aside>
@@ -886,7 +874,7 @@ export default function App() {
             <div className="course-toolbar">
               <button onClick={() => setSide(true)} type="button">☰ Темы</button>
               <strong>{currentTopic?.title || activeCourse?.title}</strong>
-              <span>{progressStats.percent}%</span>
+              <span>{progressStats.total ? `${progressStats.total} пунктов` : '...'}</span>
             </div>
             <iframe
               className="course-frame"
@@ -924,8 +912,17 @@ export default function App() {
                 <div><p>профиль</p><h2>{student.name}</h2><span>{student.telegram || 'Telegram не указан'}</span></div>
                 <button className="ghost-button" onClick={changeStudentAccount} type="button">сменить аккаунт</button>
               </div>
-              <div className="bot-code"><span>код для бота</span><strong>{student.botCode}</strong></div>
-              <p className="muted">Отправь этот код в Telegram-бота. Потом туда будет приходить фидбек.</p>
+              {student.chatId ? (
+                <>
+                  <div className="bot-code bot-code-linked"><span>Telegram</span><strong>{'\u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d'}</strong></div>
+                  <p className="muted">{'\u0411\u043e\u0442 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d. \u0421\u044e\u0434\u0430 \u0431\u0443\u0434\u0443\u0442 \u043f\u0440\u0438\u0445\u043e\u0434\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u043d\u0438\u044f \u0438 \u0444\u0438\u0434\u0431\u0435\u043a.'}</p>
+                </>
+              ) : (
+                <>
+                  <div className="bot-code"><span>{'\u043a\u043e\u0434 \u0434\u043b\u044f \u0431\u043e\u0442\u0430'}</span><strong>{student.botCode}</strong></div>
+                  <p className="muted">{'\u041e\u0442\u043f\u0440\u0430\u0432\u044c \u044d\u0442\u043e\u0442 \u043a\u043e\u0434 \u0432 Telegram-\u0431\u043e\u0442\u0430. \u041f\u043e\u0442\u043e\u043c \u0442\u0443\u0434\u0430 \u0431\u0443\u0434\u0435\u0442 \u043f\u0440\u0438\u0445\u043e\u0434\u0438\u0442\u044c \u0444\u0438\u0434\u0431\u0435\u043a.'}</p>
+                </>
+              )}
             </section>
           )}
 
@@ -1028,9 +1025,9 @@ export default function App() {
             <>
               <div className="admin-head">
                 <nav>
-                  {['courses', 'editor', 'import', 'tasks', 'answers', 'notes'].map((tab) => (
+                  {['courses', 'editor', 'import', 'tasks', 'answers', 'notes', 'access'].map((tab) => (
                     <button className={adminTab === tab ? 'active' : ''} key={tab} onClick={() => setAdminTab(tab)} type="button">
-                      {{ courses: 'Курсы', editor: 'Редактор', import: 'HTML-импорт', tasks: 'Задания', answers: 'Ответы', notes: 'Подсказки' }[tab]}
+                      {{ courses: 'Курсы', editor: 'Редактор', import: 'HTML-импорт', tasks: 'Задания', answers: 'Ответы', notes: 'Подсказки', access: 'Входы' }[tab]}
                     </button>
                   ))}
                 </nav>
@@ -1280,6 +1277,41 @@ export default function App() {
                   <label>Текст<textarea value={topicNoteDraft.note} onChange={(event) => setTopicNoteDraft({ ...topicNoteDraft, note: event.target.value })} /></label>
                   <button type="submit">сохранить подсказку</button>
                 </form>
+              ) : null}
+
+              {adminTab === 'access' ? (
+                <div className="admin-grid">
+                  <div className="admin-list access-list">
+                    <div className="task-list-head">
+                      <p>последние посетители</p>
+                      <h2>Доступ к Ogannes</h2>
+                    </div>
+                    {(dashboard?.accessIps || []).map((item) => (
+                      <article key={item.ip}>
+                        <p>{formatDeadline(item.lastSeenAt || item.createdAt)} · {item.hits || 1} визит(ов)</p>
+                        <h3>{item.ip}</h3>
+                        <span>{item.lastPath || '/'}</span>
+                        <small>{item.userAgent || 'user-agent не передан'}</small>
+                      </article>
+                    ))}
+                    {(dashboard?.accessIps || []).length ? null : <p className="empty-state">Пока входов нет.</p>}
+                  </div>
+                  <div className="admin-list access-list">
+                    <div className="task-list-head">
+                      <p>журнал</p>
+                      <h2>Последние события</h2>
+                    </div>
+                    {(dashboard?.accessVisits || []).map((item, index) => (
+                      <article key={`${item.createdAt}-${item.ip}-${index}`}>
+                        <p>{formatDeadline(item.createdAt)} · {item.reason || 'visit'}</p>
+                        <h3>{item.ip}</h3>
+                        <span>{item.path || '/'}</span>
+                        <small>{item.userAgent || 'user-agent не передан'}</small>
+                      </article>
+                    ))}
+                    {(dashboard?.accessVisits || []).length ? null : <p className="empty-state">Журнал пустой.</p>}
+                  </div>
+                </div>
               ) : null}
             </>
           )}

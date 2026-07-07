@@ -1,6 +1,5 @@
 const { createServer, request: proxyRequest } = require("node:http");
 const { spawn } = require("node:child_process");
-const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const next = require("next");
 
@@ -9,13 +8,12 @@ function argValue(name) {
   return index >= 0 ? process.argv[index + 1] : "";
 }
 
-const dev = process.env.NODE_ENV !== "production";
+const dev = process.env.NODE_ENV === "development";
 const hostname = argValue("--hostname") || process.env.HOSTNAME || "0.0.0.0";
 const port = Number(argValue("--port") || process.env.PORT || process.env.SERVER_PORT || 3000);
 const ogannesPort = Number(process.env.OGANNES_PORT || port + 1);
 const ogannesNodeOptions = process.env.OGANNES_NODE_OPTIONS || "--max-old-space-size=96";
 const ogannesDir = path.join(__dirname, "ogannes");
-const ogannesDbPath = path.join(ogannesDir, "data", "study-db.json");
 const accessCookie = "study_access_sid";
 const adminSeenCookie = "ogannes_admin_seen";
 
@@ -42,15 +40,7 @@ function clientIp(req) {
 
 function hasOgannesAccess(req) {
   const cookies = parseCookies(req.headers.cookie);
-  if (cookies[accessCookie]) return true;
-  if (!existsSync(ogannesDbPath)) return false;
-  try {
-    const db = JSON.parse(readFileSync(ogannesDbPath, "utf8"));
-    const ip = clientIp(req);
-    return Array.isArray(db.accessIps) && db.accessIps.some((item) => item.ip === ip);
-  } catch {
-    return false;
-  }
+  return Boolean(cookies[accessCookie]);
 }
 
 function isOgannesAdmin(req) {
@@ -162,7 +152,7 @@ function startOgannes() {
   });
   child.on("exit", (code, signal) => {
     console.error(`Ogannes service exited: ${code ?? signal}`);
-    process.exitCode = 1;
+    process.exit(1);
   });
   process.on("exit", () => child.kill());
   process.on("SIGINT", () => {

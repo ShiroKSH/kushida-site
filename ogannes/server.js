@@ -9,7 +9,7 @@ import { hash as hashArgon2, verify as verifyArgon2 } from '@node-rs/argon2';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
-const dataDir = path.join(__dirname, 'data');
+const dataDir = process.env.OGANNES_DATA_DIR || path.join(__dirname, 'data');
 const courseContentDir = path.join(dataDir, 'course-content');
 const dbPath = path.join(dataDir, 'study-db.json');
 const port = Number(process.env.PORT || 4173);
@@ -19,10 +19,10 @@ loadLocalEnv();
 let adminUsername = process.env.ADMIN_USERNAME || 'ogannes';
 let adminPassword = process.env.ADMIN_PASSWORD || '';
 let adminPasswordHash = process.env.ADMIN_PASSWORD_HASH || '';
-const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+const botToken = process.env.OGANNES_DISABLE_TELEGRAM === '1' ? '' : process.env.TELEGRAM_BOT_TOKEN || '';
 const botLink = process.env.PUBLIC_BOT_LINK || 'https://t.me/OgannesStudy_bot';
-const botBuild = 'kushida-ogannes-2026-07-06-2328';
-const siteAccessPassword = 'ius';
+const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL || '';
+const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const siteAccessCookie = 'study_access_sid';
 const sessions = new Map();
 const loginAttempts = new Map();
@@ -49,6 +49,7 @@ const initialDb = {
   topicNotes: {},
   accessIps: [],
   accessTokens: [],
+  accessVisits: [],
   updatedAt: Date.now()
 };
 
@@ -117,6 +118,7 @@ function normalizeDb(raw) {
   db.topicNotes = db.topicNotes && typeof db.topicNotes === 'object' ? db.topicNotes : {};
   db.accessIps = Array.isArray(db.accessIps) ? db.accessIps : [];
   db.accessTokens = Array.isArray(db.accessTokens) ? db.accessTokens : [];
+  db.accessVisits = Array.isArray(db.accessVisits) ? db.accessVisits : [];
 
   for (const assignment of db.assignments) {
     if (!assignment.courseId) assignment.courseId = defaultCourse.id;
@@ -282,6 +284,10 @@ function getAccessToken(req) {
   return parseCookies(req)[siteAccessCookie] || cleanString(req.headers['x-access-token'], 200);
 }
 
+function accessCookieHeader(token) {
+  return `${siteAccessCookie}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${90 * 24 * 60 * 60}`;
+}
+
 function hasSiteAccess(req) {
   const db = loadDb();
   const ip = getClientIp(req);
@@ -297,25 +303,43 @@ function hasSiteAccess(req) {
   };
 }
 
-function setSiteAccess(req) {
+function setSiteAccess(req, reason = 'visit') {
   const db = loadDb();
   const ip = getClientIp(req);
-  const token = randomBytes(32).toString('hex');
+  const currentToken = getAccessToken(req);
   const now = Date.now();
+  db.accessTokens = db.accessTokens.filter((item) => !item.expiresAt || item.expiresAt > now);
+  const tokenRecord = currentToken ? db.accessTokens.find((item) => item.token === currentToken) : null;
+  const token = tokenRecord?.token || randomBytes(32).toString('hex');
+  const userAgent = cleanString(req.headers['user-agent'], 240);
+  const lastPath = cleanString(req.url || '/', 240);
   const ipRecord = db.accessIps.find((item) => item.ip === ip);
-  if (ipRecord) ipRecord.lastSeenAt = now;
-  else db.accessIps.push({ ip, createdAt: now, lastSeenAt: now });
-  db.accessTokens.push({ token, ip, createdAt: now, expiresAt: now + 90 * 24 * 60 * 60 * 1000 });
-  db.accessTokens = db.accessTokens.slice(-80);
+  if (ipRecord) {
+    ipRecord.lastSeenAt = now;
+    ipRecord.userAgent = userAgent;
+    ipRecord.lastPath = lastPath;
+    ipRecord.hits = Number(ipRecord.hits || 0) + 1;
+  } else {
+    db.accessIps.push({ ip, userAgent, lastPath, hits: 1, createdAt: now, lastSeenAt: now });
+  }
+  if (tokenRecord) {
+    tokenRecord.ip = ip;
+    tokenRecord.lastSeenAt = now;
+    tokenRecord.expiresAt = now + 90 * 24 * 60 * 60 * 1000;
+  } else {
+    db.accessTokens.push({ token, ip, createdAt: now, lastSeenAt: now, expiresAt: now + 90 * 24 * 60 * 60 * 1000 });
+  }
+  db.accessTokens = db.accessTokens.slice(-120);
+  db.accessVisits.push({ ip, userAgent, path: lastPath, reason, createdAt: now });
+  db.accessVisits = db.accessVisits.slice(-300);
   saveDb(db);
   return { ip, token };
 }
 
 function requireSiteAccess(req, res) {
   const access = hasSiteAccess(req);
-  if (access.ok) return access;
-  sendJson(res, 401, { error: 'site-locked' });
-  return null;
+  if (access.ok) return setSiteAccess(req, 'returning');
+  return setSiteAccess(req, 'auto');
 }
 
 function isLoginLimited(req) {
@@ -356,6 +380,8 @@ function adminDashboard() {
     students: db.students.sort((a, b) => b.createdAt - a.createdAt),
     submissions: db.submissions.sort((a, b) => b.createdAt - a.createdAt),
     topicNotes: db.topicNotes,
+    accessIps: db.accessIps.sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0)).slice(0, 80),
+    accessVisits: db.accessVisits.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 120),
     bot: { enabled: Boolean(botToken), link: botLink }
   };
 }
@@ -648,8 +674,12 @@ async function telegramApi(method, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) throw new Error(`telegram-${method}-${response.status}`);
-  return response.json();
+  const payloadJson = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const description = payloadJson?.description ? `: ${payloadJson.description}` : '';
+    throw new Error(`telegram-${method}-${response.status}${description}`);
+  }
+  return payloadJson;
 }
 
 async function sendTelegram(chatId, text) {
@@ -704,10 +734,6 @@ async function pollTelegram() {
 async function handleTelegramMessage(message) {
   if (!message?.chat?.id) return;
   const text = cleanString(message.text, 120);
-  if (text === '/version') {
-    await sendTelegram(String(message.chat.id), `Bot build: ${botBuild}`);
-    return;
-  }
   const db = loadDb();
   const code = normalizeBotCode(text.startsWith('/start') ? text.split(/\s+/)[1] : text);
   if (code && /^[A-Z0-9]{6,12}$/i.test(code)) {
@@ -716,10 +742,10 @@ async function handleTelegramMessage(message) {
       student.chatId = String(message.chat.id);
       student.telegram = message.from?.username ? `@${message.from.username}` : student.telegram;
       saveDb(db);
-      await sendTelegram(student.chatId, `Готово, Telegram привязан. Теперь сюда будут приходить задания и фидбек.\n\n${botBuild}`);
+      await sendTelegram(student.chatId, `Готово, Telegram привязан. Теперь сюда будут приходить задания и фидбек.`);
       return;
     }
-    await sendTelegram(String(message.chat.id), `Код не найден в базе этого сайта. Нажми на сайте "сменить аккаунт", получи новый код и пришли его сюда.\n\n${botBuild}`);
+    await sendTelegram(String(message.chat.id), `Код не найден в базе этого сайта. Нажми на сайте "сменить аккаунт", получи новый код и пришли его сюда.`);
     return;
   }
   if (text === '/tasks') {
@@ -728,7 +754,7 @@ async function handleTelegramMessage(message) {
     await sendTelegram(String(message.chat.id), body);
     return;
   }
-  await sendTelegram(String(message.chat.id), `Пришли код из профиля на сайте. Бот: ${botLink}\n\n${botBuild}`);
+  await sendTelegram(String(message.chat.id), `Пришли код из профиля на сайте. Бот: ${botLink}`);
 }
 
 async function handleApi(req, res, url) {
@@ -737,27 +763,29 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/telegram/webhook') {
+    if (telegramWebhookSecret && req.headers['x-telegram-bot-api-secret-token'] !== telegramWebhookSecret) {
+      sendJson(res, 403, { error: 'bad-secret' });
+      return true;
+    }
+    const update = await readJson(req, 256 * 1024);
+    await handleTelegramMessage(update.message);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/access/status') {
-    const access = hasSiteAccess(req);
-    sendJson(res, 200, { allowed: Boolean(access.ok), ip: access.ip });
+    const access = setSiteAccess(req, 'page-open');
+    sendJson(res, 200, { allowed: true, ip: access.ip }, {
+      'Set-Cookie': accessCookieHeader(access.token)
+    });
     return true;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/access/login') {
-    if (isLoginLimited(req)) {
-      sendJson(res, 429, { error: 'too-many-attempts' });
-      return true;
-    }
-    const body = await readJson(req, 16 * 1024);
-    const password = String(body.password || '');
-    if (password !== siteAccessPassword) {
-      noteLoginFailure(req);
-      sendJson(res, 401, { error: 'bad-access-password' });
-      return true;
-    }
-    const access = setSiteAccess(req);
+    const access = setSiteAccess(req, 'manual-open');
     sendJson(res, 200, { ok: true, ip: access.ip }, {
-      'Set-Cookie': `${siteAccessCookie}=${access.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${90 * 24 * 60 * 60}`
+      'Set-Cookie': accessCookieHeader(access.token)
     });
     return true;
   }
@@ -1115,12 +1143,14 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`);
+    const shellAccess = path.basename(filePath) === 'index.html' ? setSiteAccess(req, 'shell-open') : null;
     res.writeHead(200, {
       'Content-Type': mimeTypes[ext] || 'application/octet-stream',
       'Cache-Control': isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
       'Referrer-Policy': 'no-referrer',
       'X-Frame-Options': 'SAMEORIGIN',
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      ...(shellAccess ? { 'Set-Cookie': accessCookieHeader(shellAccess.token) } : {})
     });
     createReadStream(filePath).pipe(res);
   } catch (error) {
@@ -1131,8 +1161,21 @@ const server = http.createServer(async (req, res) => {
 
 async function startTelegram() {
   if (!botToken) return;
+  if (telegramWebhookUrl) {
+    try {
+      await telegramApi('setWebhook', {
+        url: telegramWebhookUrl,
+        drop_pending_updates: true,
+        ...(telegramWebhookSecret ? { secret_token: telegramWebhookSecret } : {})
+      });
+      console.log(`Telegram webhook: ${telegramWebhookUrl}`);
+    } catch (error) {
+      console.warn(`Telegram webhook setup failed: ${error.message}`);
+    }
+    return;
+  }
   try {
-    await telegramApi('deleteWebhook', { drop_pending_updates: false });
+    await telegramApi('deleteWebhook', { drop_pending_updates: true });
   } catch (error) {
     console.warn(`Telegram webhook cleanup failed: ${error.message}`);
   }

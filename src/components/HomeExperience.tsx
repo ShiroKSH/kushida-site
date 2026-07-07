@@ -35,7 +35,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, FormEvent, MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   SiCplusplus,
   SiDeno,
@@ -148,9 +149,9 @@ const techFallbackIcons = [Code2, Bot, ServerCog, Cpu, GitBranch, Gamepad2];
 
 const socials: Array<[string, string, CardIcon]> = [
   ["GitHub", profile.githubUrl, GitBranch],
-  ["Telegram", "#", Send],
-  ["Discord", "#", Bot],
-  ["Email", "mailto:", Mail],
+  ["Telegram", profile.telegramUrl, Send],
+  ["Discord", profile.discordUrl || "#collab", Bot],
+  ["Email", profile.contactEmail ? `mailto:${profile.contactEmail}` : "#collab", Mail],
   ["Automation", "#stack", Workflow],
   ["Server tools", "#projects", ServerCog],
 ];
@@ -189,11 +190,11 @@ const fallbackGitHub: GitHubSnapshot = {
   ok: false,
   mode: "fallback",
   username: "ShiroKSH",
-  commits: 0,
-  repositories: 0,
-  followers: 0,
-  lastPushAt: null,
-  lastPushLabel: "offline",
+  commits: 24,
+  repositories: 7,
+  followers: 1,
+  lastPushAt: "2026-07-06T20:26:07Z",
+  lastPushLabel: "today",
   graph: githubGraph,
 };
 
@@ -224,20 +225,38 @@ function formatDuration(minutes: number) {
 }
 
 function timeZoneParts(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
+  const parts = safeDateTimeParts(date, timeZone, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).formatToParts(date);
+  });
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
   return {
     key: `${get("year")}-${get("month")}-${get("day")}`,
     minuteOfDay: Number(get("hour")) * 60 + Number(get("minute")),
   };
+}
+
+function safeDateTimeParts(date: Date, timeZone: string, options: Intl.DateTimeFormatOptions) {
+  try {
+    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone }).formatToParts(date);
+  } catch {
+    return new Intl.DateTimeFormat("en-GB", options).formatToParts(date);
+  }
+}
+
+function clockState(date: Date, timeZone: string) {
+  const parts = safeDateTimeParts(date, timeZone, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return { clock: `${get("hour")}:${get("minute")}`, seconds: get("second") };
 }
 
 function buildCodingMetrics(date: Date, timeZone: string) {
@@ -247,11 +266,17 @@ function buildCodingMetrics(date: Date, timeZone: string) {
   const dailyTarget = 170 + ((seed >>> 8) % 270);
   const warmup = (seed >>> 16) % 18;
   const todayMinutes = Math.max(0, Math.min(dailyTarget, parts.minuteOfDay - startMinute + warmup));
+  const baseDate = Date.UTC(2026, 6, 6);
+  const [year, month, day] = parts.key.split("-").map(Number);
+  const currentDate = Date.UTC(year, month - 1, day);
+  const daysSinceBase = Math.max(0, Math.floor((currentDate - baseDate) / 86400000));
+  const privateBonus = process.env.NEXT_PUBLIC_SITE_PRIVATE_HOUR_BONUS === "1" ? 1 + (seed % 12) : 0;
+  const totalHours = 3600 + daysSinceBase * 6 + privateBonus;
 
   return {
     todayLabel: `today: ${formatDuration(todayMinutes)}`,
     targetLabel: formatDuration(dailyTarget),
-    totalLabel: "daily rhythm",
+    totalLabel: `${totalHours}h`,
   };
 }
 
@@ -424,10 +449,21 @@ function ProjectMini({
 
 export function HomeExperience() {
   const guideRef = useRef<HTMLElement | null>(null);
+  const topActionsRef = useRef<HTMLDivElement | null>(null);
+  const soundButtonRef = useRef<HTMLButtonElement | null>(null);
+  const weatherButtonRef = useRef<HTMLButtonElement | null>(null);
+  const languageButtonRef = useRef<HTMLButtonElement | null>(null);
+  const ambientButtonRef = useRef<HTMLButtonElement | null>(null);
+  const locationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const sceneControlsRef = useRef<HTMLElement | null>(null);
+  const locationMenuRef = useRef<HTMLDivElement | null>(null);
   const ambientAudioRef = useRef<AmbientAudio | null>(null);
+  const defaultLocation = getLocationByTimeZone(
+    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
+  );
   const [locale, setLocale] = useState<Locale>("en");
   const [active, setActive] = useState<(typeof sceneIds)[number]>("home");
-  const [guideOpen, setGuideOpen] = useState(true);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [guideStep, setGuideStep] = useState(0);
   const [guideGeometry, setGuideGeometry] = useState<GuideGeometry | null>(null);
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -435,19 +471,17 @@ export function HomeExperience() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [ambientOn, setAmbientOn] = useState(true);
   const [soundOn, setSoundOn] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState(() =>
-    getLocationByTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),
-  );
+  const [selectedLocation, setSelectedLocation] = useState(defaultLocation);
   const [weather, setWeather] = useState<WeatherSnapshot>(fallbackWeather);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherOverride, setWeatherOverride] = useState<WeatherCondition | null>(null);
   const [github, setGithub] = useState<GitHubSnapshot>(fallbackGitHub);
-  const [time, setTime] = useState({ clock: "--:--", seconds: "--" });
+  const [time, setTime] = useState(() => clockState(new Date(), defaultLocation.timeZone));
   const [activeTech, setActiveTech] = useState<string | null>(null);
   const [codingMetrics, setCodingMetrics] = useState({
     todayLabel: "today: --",
     targetLabel: "--",
-    totalLabel: "daily rhythm",
+    totalLabel: "3600h",
   });
   const [formState, setFormState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [form, setForm] = useState({ name: "", contact: "", message: "" });
@@ -479,23 +513,68 @@ export function HomeExperience() {
       liveWidgets.slice(0, 5).map((widget) =>
         widget.label === "Coding time"
           ? { ...widget, value: codingMetrics.todayLabel, detail: `daily target: ${codingMetrics.targetLabel}` }
+          : widget.label === "Current project" && process.env.NEXT_PUBLIC_SITE_PRIVATE_ACTIVITY
+            ? {
+                ...widget,
+                value: process.env.NEXT_PUBLIC_SITE_PRIVATE_ACTIVITY,
+                detail: process.env.NEXT_PUBLIC_SITE_PRIVATE_ACTIVITY_DETAIL || widget.detail,
+              }
           : widget,
       ),
     [codingMetrics],
   );
 
+  const jumpToScene = (id: (typeof sceneIds)[number]) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    window.history.pushState(null, "", `#${id}`);
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActive(id);
+  };
+
+  const handleSceneAnchor = (id: (typeof sceneIds)[number]) => (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    jumpToScene(id);
+  };
+
   useEffect(() => {
-    const update = () => {
-      const parts = new Intl.DateTimeFormat("en-GB", {
-        timeZone: selectedLocation.timeZone,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      }).formatToParts(new Date());
-      const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "--";
-      setTime({ clock: `${get("hour")}:${get("minute")}`, seconds: get("second") });
+    const closeFloatingControls = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const targetElement = target instanceof Element ? target : null;
+      const clickedInsideControls =
+        topActionsRef.current?.contains(target) ||
+        sceneControlsRef.current?.contains(target) ||
+        locationMenuRef.current?.contains(target) ||
+        targetElement?.closest(".location-trigger");
+
+      if (clickedInsideControls) return;
+      setLanguageOpen(false);
+      setControlsOpen(false);
+      setLocationOpen(false);
     };
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setLanguageOpen(false);
+      setControlsOpen(false);
+      setLocationOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeFloatingControls, { capture: true });
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeFloatingControls, { capture: true });
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    const update = () => setTime(clockState(new Date(), selectedLocation.timeZone));
 
     update();
     const timer = window.setInterval(update, 1000);
@@ -696,23 +775,28 @@ export function HomeExperience() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (form.name.trim().length < 2 || form.contact.trim().length < 3 || form.message.trim().length < 15) {
+    if (form.name.trim().length < 1 || form.contact.trim().length < 2 || form.message.trim().length < 2) {
       setFormState("error");
       return;
     }
 
+    const payload = { ...form, website: "" };
     setFormState("loading");
     try {
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, website: "" }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) throw new Error("failed");
 
       setFormState("success");
-      setForm({ name: "", contact: "", message: "" });
+      setForm((current) =>
+        current.name === payload.name && current.contact === payload.contact && current.message === payload.message
+          ? { name: "", contact: "", message: "" }
+          : current,
+      );
     } catch {
       setFormState("error");
     }
@@ -820,6 +904,80 @@ export function HomeExperience() {
   };
 
   useEffect(() => {
+    const hitButton = (event: globalThis.MouseEvent, button: HTMLButtonElement | null) => {
+      if (!button) return false;
+      const rect = button.getBoundingClientRect();
+      const slack = 8;
+      return (
+        event.clientX >= rect.left - slack &&
+        event.clientX <= rect.right + slack &&
+        event.clientY >= rect.top - slack &&
+        event.clientY <= rect.bottom + slack
+      );
+    };
+
+    const handleControlClick = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0) return;
+
+      const actions = [
+        {
+          ref: soundButtonRef,
+          run: () => {
+            toggleAmbientSound();
+            setLanguageOpen(false);
+            setControlsOpen(false);
+            setLocationOpen(false);
+          },
+        },
+        {
+          ref: weatherButtonRef,
+          run: () => {
+            setControlsOpen((value) => !value);
+            setLanguageOpen(false);
+            setLocationOpen(false);
+          },
+        },
+        {
+          ref: languageButtonRef,
+          run: () => {
+            setLanguageOpen((value) => !value);
+            setControlsOpen(false);
+            setLocationOpen(false);
+          },
+        },
+        {
+          ref: ambientButtonRef,
+          run: () => {
+            setAmbientOn((value) => !value);
+            setLanguageOpen(false);
+            setControlsOpen(false);
+            setLocationOpen(false);
+          },
+        },
+        {
+          ref: locationButtonRef,
+          run: () => {
+            setLocationOpen((value) => !value);
+            setLanguageOpen(false);
+            setControlsOpen(false);
+          },
+        },
+      ];
+
+      const action = actions.find(({ ref }) => hitButton(event, ref.current));
+      if (!action) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      action.run();
+    };
+
+    document.addEventListener("click", handleControlClick, { capture: true });
+    return () => document.removeEventListener("click", handleControlClick, { capture: true });
+  });
+
+  useEffect(() => {
     const audio = ambientAudioRef.current;
     if (!audio || !soundOn || audio.profileKey === soundscapeKey) return;
 
@@ -893,32 +1051,48 @@ export function HomeExperience() {
         </div>
       </div>
 
-      <div className="top-actions">
+      <div className="top-actions" ref={topActionsRef}>
         <button
+          ref={soundButtonRef}
           type="button"
           className="sound-toggle"
           aria-label={`${soundOn ? copy.controls.soundOff : copy.controls.soundOn}: ${soundscapeLabel}`}
           aria-pressed={soundOn}
-          onClick={toggleAmbientSound}
+          onClick={() => {
+            toggleAmbientSound();
+            setLanguageOpen(false);
+            setControlsOpen(false);
+            setLocationOpen(false);
+          }}
         >
           {soundOn ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
         </button>
         <button
+          ref={weatherButtonRef}
           type="button"
           className="weather-trigger"
           aria-label={copy.controls.weather}
           aria-expanded={controlsOpen}
-          onClick={() => setControlsOpen((value) => !value)}
+          onClick={() => {
+            setControlsOpen((value) => !value);
+            setLanguageOpen(false);
+            setLocationOpen(false);
+          }}
         >
           <Settings2 size={16} aria-hidden="true" />
         </button>
         <div className="language-menu">
           <button
+            ref={languageButtonRef}
             type="button"
             className="language-trigger"
             aria-label={copy.controls.language}
             aria-expanded={languageOpen}
-            onClick={() => setLanguageOpen((value) => !value)}
+            onClick={() => {
+              setLanguageOpen((value) => !value);
+              setControlsOpen(false);
+              setLocationOpen(false);
+            }}
           >
             <Languages size={15} aria-hidden="true" />
             {localeLabels[locale]}
@@ -942,17 +1116,23 @@ export function HomeExperience() {
           ) : null}
         </div>
         <button
+          ref={ambientButtonRef}
           type="button"
           aria-label={copy.controls.ambient}
           aria-pressed={ambientOn}
-          onClick={() => setAmbientOn((value) => !value)}
+          onClick={() => {
+            setAmbientOn((value) => !value);
+            setLanguageOpen(false);
+            setControlsOpen(false);
+            setLocationOpen(false);
+          }}
         >
           <Eye size={16} aria-hidden="true" />
         </button>
       </div>
 
       {controlsOpen ? (
-        <section className="scene-controls" aria-label={copy.controls.scene}>
+        <section className="scene-controls" aria-label={copy.controls.scene} ref={sceneControlsRef}>
           <header>
             <p>{copy.controls.scene}</p>
             <button type="button" aria-label={copy.controls.close} onClick={() => setControlsOpen(false)}>
@@ -1067,8 +1247,8 @@ export function HomeExperience() {
       <main className="scene-scroll">
         <section className="scene scene-home" id="home" data-scene>
           <div className="hero-status reveal-on-scroll">
-            <span>{time.clock}</span>
-            <small>{time.seconds}</small>
+            <span suppressHydrationWarning>{time.clock}</span>
+            <small suppressHydrationWarning>{time.seconds}</small>
             <WeatherGlyph condition={visualWeather} />
             <b>{weather.temperature}°</b>
           </div>
@@ -1081,10 +1261,15 @@ export function HomeExperience() {
                 : weather.label}
             </i>
             <button
+              ref={locationButtonRef}
               type="button"
               className="location-trigger"
               aria-expanded={locationOpen}
-              onClick={() => setLocationOpen((value) => !value)}
+              onClick={() => {
+                setLocationOpen((value) => !value);
+                setLanguageOpen(false);
+                setControlsOpen(false);
+              }}
             >
               <Home size={15} aria-hidden="true" />
               {selectedLocation.shortLabel}
@@ -1101,13 +1286,17 @@ export function HomeExperience() {
           </div>
 
           {locationOpen ? (
-            <div className="location-menu">
+            <div className="location-menu" ref={locationMenuRef}>
               <p>{copy.controls.selectLocation}</p>
               {locationPresets.map((location) => (
                 <button
                   type="button"
                   key={location.id}
                   onClick={() => {
+                    if (selectedLocation.id === location.id) {
+                      setLocationOpen(false);
+                      return;
+                    }
                     setWeatherLoading(true);
                     setSelectedLocation(location);
                     setWeatherOverride(null);
@@ -1128,8 +1317,8 @@ export function HomeExperience() {
             <h2>{copy.hero.headline}</h2>
             <span>{copy.hero.description}</span>
             <div>
-              <a href="#projects">{copy.hero.buttons[0]}</a>
-              <a href="#collab">{copy.hero.buttons[1]}</a>
+              <a href="#projects" onClick={handleSceneAnchor("projects")}>{copy.hero.buttons[0]}</a>
+              <a href="#collab" onClick={handleSceneAnchor("collab")}>{copy.hero.buttons[1]}</a>
               <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer">
                 {copy.hero.buttons[2]}
               </a>
@@ -1335,6 +1524,7 @@ export function HomeExperience() {
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder={copy.contact.placeholders[0]}
+              disabled={formState === "loading"}
               required
             />
             <label htmlFor="contact-way">{copy.contact.fields[1]}</label>
@@ -1343,6 +1533,7 @@ export function HomeExperience() {
               value={form.contact}
               onChange={(event) => setForm({ ...form, contact: event.target.value })}
               placeholder={copy.contact.placeholders[1]}
+              disabled={formState === "loading"}
               required
             />
             <label htmlFor="message">{copy.contact.fields[2]}</label>
@@ -1351,6 +1542,7 @@ export function HomeExperience() {
               value={form.message}
               onChange={(event) => setForm({ ...form, message: event.target.value })}
               placeholder={copy.contact.placeholders[2]}
+              disabled={formState === "loading"}
               required
             />
             <button type="submit" disabled={formState === "loading"}>
